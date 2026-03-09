@@ -90,7 +90,8 @@ public class PatrollingState : IState
             if (randomPoint <= cumulative)
             {
                 visitCount[i]++;
-                controller.Agent.SetDestination(rooms[i].entrance.position);
+                currentRoomIndex = i;
+                controller.Agent.SetDestination(rooms[currentRoomIndex].entrance.position);
                 if (visitCount[i] > recount + Random.Range(-3, 3))
                     visitCount[i] = Mathf.Max(0, visitCount[i] - 1);
                 return;
@@ -99,6 +100,7 @@ public class PatrollingState : IState
     }
     private void StartInspection()
     {
+        //Debug.Log(currentRoomIndex);
         currentInspectionPoints = new List<Transform>(rooms[currentRoomIndex].inspectionPoints);
 
         if (currentInspectionPoints.Count == 0)

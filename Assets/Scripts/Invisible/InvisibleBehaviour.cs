@@ -1,4 +1,4 @@
-using UnityEngine;
+п»їusing UnityEngine;
 
 public class InvisibleBehaviour : MonoBehaviour
 {
@@ -23,6 +23,13 @@ public class InvisibleBehaviour : MonoBehaviour
         if (parameters == null || target == null)
             return false;
 
+        PlayerHiding playerHiding = target.GetComponent<PlayerHiding>();
+        if (playerHiding == null)
+            playerHiding = target.GetComponentInParent<PlayerHiding>();
+
+        if (playerHiding != null && playerHiding.IsHidden)
+            return false;
+
         float viewDistance = parameters.ViewDistance;
         float viewAngle = parameters.BaseViewAngle;
 
@@ -43,6 +50,7 @@ public class InvisibleBehaviour : MonoBehaviour
 
         return false;
     }
+
     private void OnDrawGizmos()
     {
         if (parameters == null)
@@ -59,17 +67,15 @@ public class InvisibleBehaviour : MonoBehaviour
 
         Gizmos.color = Color.yellow;
 
-        // Левая граница
         Vector3 leftBoundary = Quaternion.Euler(0f, -viewAngle * 0.5f, 0f) * forward;
         Gizmos.DrawRay(origin, leftBoundary * viewDistance);
 
-        // Правая граница
         Vector3 rightBoundary = Quaternion.Euler(0f, viewAngle * 0.5f, 0f) * forward;
         Gizmos.DrawRay(origin, rightBoundary * viewDistance);
 
-        // Центральная линия
         Gizmos.color = Color.red;
         Gizmos.DrawRay(origin, forward * viewDistance);
+
         int segments = 30;
         float halfAngle = viewAngle * 0.5f;
 
