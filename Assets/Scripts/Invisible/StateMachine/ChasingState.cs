@@ -10,6 +10,10 @@ public class ChasingState : IState
     private bool waitingAfterLost;
     private bool hadVisualContact;
     private bool hasLoggedCaughtPlayer;
+    private float originalAcceleration;
+    private float originalAngularSpeed;
+    private float originalStoppingDistance;
+    private bool originalAutoBraking;
 
     private const float LoseDelay = 1f;
 
@@ -20,6 +24,16 @@ public class ChasingState : IState
 
     public void Enter()
     {
+        originalAcceleration = controller.Agent.acceleration;
+        originalAngularSpeed = controller.Agent.angularSpeed;
+        originalStoppingDistance = controller.Agent.stoppingDistance;
+        originalAutoBraking = controller.Agent.autoBraking;
+
+        controller.Agent.speed = InvisibleParameters.Instance.ChaseSpeed;
+        controller.Agent.acceleration = controller.ChaseAcceleration;
+        controller.Agent.angularSpeed = controller.ChaseAngularSpeed;
+        controller.Agent.stoppingDistance = controller.ChaseStoppingDistance;
+        controller.Agent.autoBraking = controller.ChaseAutoBraking;
         controller.Agent.isStopped = false;
         controller.Agent.updateRotation = false;
         waitingAfterLost = false;
@@ -78,13 +92,17 @@ public class ChasingState : IState
 
     public void Exit()
     {
+        controller.Agent.acceleration = originalAcceleration;
+        controller.Agent.angularSpeed = originalAngularSpeed;
+        controller.Agent.stoppingDistance = originalStoppingDistance;
+        controller.Agent.autoBraking = originalAutoBraking;
         controller.Agent.updateRotation = true;
         controller.Agent.ResetPath();
     }
 
     private bool TryCatchPlayer()
     {
-        if (hasLoggedCaughtPlayer || controller.Target == null)
+        if (!controller.CatchEnabled || hasLoggedCaughtPlayer || controller.Target == null)
             return false;
 
         float distanceToPlayer = Vector3.Distance(controller.transform.position, controller.Target.position);
@@ -99,9 +117,24 @@ public class ChasingState : IState
 
     private void RotateTowardsMovement()
     {
-        Vector3 direction = controller.Agent.desiredVelocity;
+        Vector3 direction = Vector3.zero;
+
+        if (controller.Target != null && controller.Behaviour.CanSeeTarget())
+            direction = controller.Target.position - controller.transform.position;
+        else if (controller.Agent.hasPath)
+            direction = controller.Agent.steeringTarget - controller.transform.position;
+        else
+            direction = controller.Agent.desiredVelocity;
+
+        direction.y = 0f;
         if (direction.sqrMagnitude > 0.01f)
-            controller.transform.rotation = Quaternion.LookRotation(direction);
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(direction.normalized);
+            controller.transform.rotation = Quaternion.RotateTowards(
+                controller.transform.rotation,
+                targetRotation,
+                controller.ChaseAngularSpeed * Time.deltaTime);
+        }
     }
 
     private HidingSpotInteractable GetGuaranteedHidingSpot()

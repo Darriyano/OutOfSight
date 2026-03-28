@@ -6,7 +6,7 @@ public class InvestigationState : IState
 {
     private class InvestigationPoint
     {
-        public Transform PointTransform;
+        public Vector3 PointPosition;
         public HidingSpotInteractable HidingSpot;
     }
 
@@ -19,6 +19,7 @@ public class InvestigationState : IState
     private float waitTimer;
     private float investigationTimer;
     private float maxInvestigationTime;
+    private int fixedPointCount;
 
     private const float PointCheckPause = 0.75f;
     private const float HiddenPlayerCheckDistance = 1.25f;
@@ -35,7 +36,7 @@ public class InvestigationState : IState
 
     public void Enter()
     {
-        controller.Agent.speed = InvisibleParameters.Instance.investigationSpeed;
+        controller.Agent.speed = InvisibleParameters.Instance.InvestigationSpeed;
         controller.Agent.isStopped = false;
 
         currentPointIndex = 0;
@@ -51,7 +52,7 @@ public class InvestigationState : IState
             return;
         }
 
-        controller.Agent.SetDestination(checkPoints[currentPointIndex].PointTransform.position);
+        controller.Agent.SetDestination(checkPoints[currentPointIndex].PointPosition);
         Debug.Log("Investigation");
     }
 
@@ -92,7 +93,7 @@ public class InvestigationState : IState
             return;
         }
 
-        controller.Agent.SetDestination(checkPoints[currentPointIndex].PointTransform.position);
+        controller.Agent.SetDestination(checkPoints[currentPointIndex].PointPosition);
     }
 
     public void Exit()
@@ -103,8 +104,10 @@ public class InvestigationState : IState
     private void BuildCheckRoute()
     {
         checkPoints.Clear();
+        fixedPointCount = 0;
 
         AddGuaranteedSpot();
+        AddNoisePoint();
 
         if (shouldInspectHidingSpots)
             BuildHidingRoute();
@@ -112,7 +115,7 @@ public class InvestigationState : IState
         if (checkPoints.Count == 0)
             BuildInspectionRoute();
 
-        ShuffleFromIndex(checkPoints, guaranteedSpot != null ? 1 : 0);
+        ShuffleFromIndex(checkPoints, fixedPointCount);
     }
 
     private void AddGuaranteedSpot()
@@ -122,9 +125,23 @@ public class InvestigationState : IState
 
         checkPoints.Add(new InvestigationPoint
         {
-            PointTransform = guaranteedSpot.transform,
+            PointPosition = guaranteedSpot.transform.position,
             HidingSpot = guaranteedSpot
         });
+        fixedPointCount++;
+    }
+
+    private void AddNoisePoint()
+    {
+        if (!controller.TryConsumePendingNoise(out Vector3 noisePosition))
+            return;
+
+        checkPoints.Add(new InvestigationPoint
+        {
+            PointPosition = noisePosition
+        });
+
+        fixedPointCount++;
     }
 
     private bool TryFindHiddenPlayerAtCurrentPoint()
@@ -147,7 +164,7 @@ public class InvestigationState : IState
         }
         else
         {
-            float distanceToCheckPoint = Vector3.Distance(point.PointTransform.position, controller.Target.position);
+            float distanceToCheckPoint = Vector3.Distance(point.PointPosition, controller.Target.position);
             if (distanceToCheckPoint > HiddenPlayerCheckDistance)
                 return false;
         }
@@ -181,7 +198,7 @@ public class InvestigationState : IState
 
                 checkPoints.Add(new InvestigationPoint
                 {
-                    PointTransform = hidingPoint,
+                    PointPosition = hidingPoint.position,
                     HidingSpot = hidingSpot
                 });
             }
@@ -208,7 +225,7 @@ public class InvestigationState : IState
 
                 checkPoints.Add(new InvestigationPoint
                 {
-                    PointTransform = inspectionPoint
+                    PointPosition = inspectionPoint.position
                 });
             }
         }

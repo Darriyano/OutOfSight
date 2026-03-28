@@ -3,25 +3,48 @@ using Game.Interaction;
 using UnityEngine;
 using UnityEngine.AI;
 
-public class StateController : MonoBehaviour
+public class StateController : MonoBehaviour, INoiseListener
 {
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private Transform target;
     [SerializeField] private InvisibleBehaviour behaviour;
     [SerializeField] private List<Room> rooms;
-    [SerializeField] private float catchDistance = 1f;
 
     private IState currentState;
+    private bool hasPendingNoise;
+    private Vector3 pendingNoisePosition;
+    private float pendingNoiseStrength;
 
     public NavMeshAgent Agent => agent;
     public Transform Target => target;
     public InvisibleBehaviour Behaviour => behaviour;
     public List<Room> Rooms => rooms;
-    public float CatchDistance => catchDistance;
+    public IState CurrentState => currentState;
+    public float CatchDistance => InvisibleParameters.Instance.CatchDistance;
+    public bool CatchEnabled => InvisibleParameters.Instance.CatchEnabled;
+    public float ChaseStoppingDistance => InvisibleParameters.Instance.ChaseStoppingDistance;
+    public float ChaseAcceleration => InvisibleParameters.Instance.ChaseAcceleration;
+    public float ChaseAngularSpeed => InvisibleParameters.Instance.ChaseAngularSpeed;
+    public bool ChaseAutoBraking => InvisibleParameters.Instance.ChaseAutoBraking;
+    public Component NoiseListenerComponent => this;
+    public Vector3 HearingPosition => transform.position;
+    public float HearingCaptureRadius => InvisibleParameters.Instance.NoiseListenerCaptureRadius;
+    public float MinimumHeardNoiseStrength => InvisibleParameters.Instance.MinHeardNoiseStrength;
+    public bool CanReceiveNoise => isActiveAndEnabled && agent != null;
 
     private void Awake()
     {
         IgnoreTargetCollisions();
+    }
+
+    private void OnEnable()
+    {
+        NoiseSystem.RegisterListener(this);
+    }
+
+    private void OnDisable()
+    {
+        NoiseSystem.UnregisterListener(this);
     }
 
     private void Start()
@@ -49,6 +72,51 @@ public class StateController : MonoBehaviour
     public void StartInvestigationFromNoise()
     {
         StartInvestigation(true);
+    }
+
+    public void StartInvestigationFromNoise(Vector3 noisePosition, bool shouldInspectHidingSpots = true)
+    {
+        SetPendingNoise(noisePosition, 1f);
+        StartInvestigation(shouldInspectHidingSpots);
+    }
+
+    public bool TryConsumePendingNoise(out Vector3 noisePosition)
+    {
+        if (!hasPendingNoise)
+        {
+            noisePosition = Vector3.zero;
+            return false;
+        }
+
+        hasPendingNoise = false;
+        pendingNoiseStrength = 0f;
+        noisePosition = pendingNoisePosition;
+        return true;
+    }
+
+    public void OnNoiseHeard(NoiseHeardInfo heardNoise)
+    {
+        if (!CanReceiveNoise)
+            return;
+
+        if (behaviour != null && behaviour.CanSeeTarget())
+            return;
+
+        if (currentState is ChasingState)
+            return;
+
+        SetPendingNoise(heardNoise.SourcePosition, heardNoise.Strength);
+        StartInvestigation(shouldInspectHidingSpots: true);
+    }
+
+    private void SetPendingNoise(Vector3 noisePosition, float noiseStrength)
+    {
+        if (hasPendingNoise && noiseStrength < pendingNoiseStrength)
+            return;
+
+        hasPendingNoise = true;
+        pendingNoisePosition = noisePosition;
+        pendingNoiseStrength = noiseStrength;
     }
 
     private void IgnoreTargetCollisions()
