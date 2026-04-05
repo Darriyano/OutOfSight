@@ -2,95 +2,131 @@ using UnityEngine;
 
 namespace Game.Interaction
 {
-    /// <summary>
-    /// Простая дверь: открывается/закрывается при взаимодействии.
-    /// 
-    /// Важно: дверь "анимируется" через поворот pivot вокруг локальной оси Y.
-    /// pivot обычно ставят в месте петель двери, чтобы она открывалась реалистично.
-    /// Если pivot не задан — используем сам объект двери.
-    /// </summary>
     public class DoorInteractable : MonoBehaviour, IInteractable
     {
-        /// <summary>
-        /// Pivot = объект, который мы вращаем.
-        /// Часто это "родитель" двери, стоящий в месте петель.
-        /// </summary>
+        private enum MotionMode
+        {
+            SelfRotation,
+            ExternalPivotRotation,
+            ChildPivotOrbit
+        }
+
         [SerializeField] private Transform pivot;
-
-        /// <summary>
-        /// На сколько градусов повернуть дверь при открытии.
-        /// 90 = классика.
-        /// </summary>
         [SerializeField] private float openAngle = 90f;
-
-        /// <summary>
-        /// Скорость плавного поворота (чем больше — тем быстрее).
-        /// </summary>
         [SerializeField] private float speed = 6f;
 
-        /// <summary>
-        /// Текущее состояние двери.
-        /// false = закрыта
-        /// true = открыта
-        /// </summary>
-        private bool _open;
-
-        /// <summary>
-        /// Запоминаем, как дверь выглядит в закрытом состоянии (поворот).
-        /// </summary>
-        private Quaternion _closedRot;
-
-        /// <summary>
-        /// Запоминаем поворот, когда дверь открыта.
-        /// </summary>
-        private Quaternion _openRot;
+        private bool isOpen;
+        private MotionMode motionMode;
+        private Quaternion closedLocalRotation;
+        private Quaternion openLocalRotation;
+        private Vector3 closedWorldPosition;
+        private Vector3 openWorldPosition;
+        private Quaternion closedWorldRotation;
+        private Quaternion openWorldRotation;
 
         private void Awake()
         {
-            // Если pivot не задан — вращаем сам объект (не идеально, но работает)
-            if (!pivot) pivot = transform;
+            ResolveMotionMode();
+            CacheRotations();
+        }
 
-            // Запоминаем исходный поворот как "закрыто"
-            _closedRot = pivot.localRotation;
-
-            // Рассчитываем "открыто": это "закрыто" + поворот по Y на openAngle
-            _openRot = _closedRot * Quaternion.Euler(0f, openAngle, 0f);
+        private void OnValidate()
+        {
+            ResolveMotionMode();
+            CacheRotations();
         }
 
         private void Update()
         {
-            // В Update мы НЕ переключаем состояние.
-            // Мы только плавно двигаем текущий поворот к нужному.
-            // Это дает "анимацию" открывания/закрывания.
-
-            // Куда хотим прийти сейчас:
-            var target = _open ? _openRot : _closedRot;
-
-            // Плавно интерполируем (Slerp) текущий поворот к target
-            pivot.localRotation = Quaternion.Slerp(
-                pivot.localRotation,
-                target,
-                Time.deltaTime * speed
-            );
+            switch (motionMode)
+            {
+                case MotionMode.ChildPivotOrbit:
+                    UpdateOrbitMotion();
+                    break;
+                case MotionMode.ExternalPivotRotation:
+                case MotionMode.SelfRotation:
+                    UpdateRotationMotion();
+                    break;
+            }
         }
 
-        /// <summary>
-        /// Текст подсказки.
-        /// </summary>
-        public string GetPrompt() => _open ? "Close" : "Open";
+        public string GetPrompt() => isOpen ? "Close" : "Open";
 
-        /// <summary>
-        /// Дверь без замка — всегда можно.
-        /// </summary>
         public bool CanInteract(GameObject interactor) => true;
 
-        /// <summary>
-        /// Нажали E -> меняем состояние.
-        /// Дальше Update сам плавно повернет pivot.
-        /// </summary>
         public void Interact(GameObject interactor)
         {
-            _open = !_open; // переключаем
+            isOpen = !isOpen;
+        }
+
+        private void CacheRotations()
+        {
+            if (motionMode == MotionMode.ChildPivotOrbit)
+            {
+                closedWorldPosition = transform.position;
+                closedWorldRotation = transform.rotation;
+
+                Vector3 hingeLocalOffset = transform.InverseTransformPoint(pivot.position);
+                Vector3 hingeWorldPosition = pivot.position;
+
+                openWorldRotation = closedWorldRotation * Quaternion.Euler(0f, openAngle, 0f);
+                openWorldPosition = hingeWorldPosition - (openWorldRotation * hingeLocalOffset);
+                return;
+            }
+
+            Transform animatedTransform = motionMode == MotionMode.ExternalPivotRotation ? pivot : transform;
+            if (animatedTransform == null)
+                return;
+
+            closedLocalRotation = animatedTransform.localRotation;
+            openLocalRotation = closedLocalRotation * Quaternion.Euler(0f, openAngle, 0f);
+        }
+
+        private void ResolveMotionMode()
+        {
+            if (pivot == null || pivot == transform)
+            {
+                pivot = transform;
+                motionMode = MotionMode.SelfRotation;
+                return;
+            }
+
+            motionMode = pivot.IsChildOf(transform)
+                ? MotionMode.ChildPivotOrbit
+                : MotionMode.ExternalPivotRotation;
+        }
+
+        private void UpdateRotationMotion()
+        {
+            Transform animatedTransform = motionMode == MotionMode.ExternalPivotRotation ? pivot : transform;
+            if (animatedTransform == null)
+                return;
+
+            Quaternion targetRotation = isOpen ? openLocalRotation : closedLocalRotation;
+            if (Quaternion.Angle(animatedTransform.localRotation, targetRotation) <= 0.01f)
+                return;
+
+            animatedTransform.localRotation = Quaternion.Slerp(
+                animatedTransform.localRotation,
+                targetRotation,
+                Time.deltaTime * speed);
+        }
+
+        private void UpdateOrbitMotion()
+        {
+            if (pivot == null)
+                return;
+
+            Vector3 targetPosition = isOpen ? openWorldPosition : closedWorldPosition;
+            Quaternion targetRotation = isOpen ? openWorldRotation : closedWorldRotation;
+
+            if (Vector3.Distance(transform.position, targetPosition) <= 0.0001f &&
+                Quaternion.Angle(transform.rotation, targetRotation) <= 0.01f)
+                return;
+
+            transform.SetPositionAndRotation(
+                Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * speed),
+                Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * speed));
         }
     }
 }

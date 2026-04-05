@@ -113,8 +113,6 @@ public class WallListeningDevice : MonoBehaviour
         if (hits == null || hits.Length == 0)
             return 0;
 
-        System.Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
-
         HashSet<Collider> uniqueObstacles = new HashSet<Collider>();
 
         for (int i = 0; i < hits.Length; i++)

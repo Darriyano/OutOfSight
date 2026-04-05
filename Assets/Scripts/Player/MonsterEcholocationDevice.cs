@@ -4,6 +4,8 @@ using UnityEngine.UI;
 
 public class MonsterEcholocationDevice : MonoBehaviour
 {
+    private const int AuraTextureSize = 128;
+
     [Header("Input")]
     [SerializeField] private KeyCode activationKey = KeyCode.Alpha2;
     [SerializeField] private float activationCooldown = 6f;
@@ -37,6 +39,8 @@ public class MonsterEcholocationDevice : MonoBehaviour
     private float revealTimer;
     private float lastActivationTime = -999f;
     private Coroutine pendingAlertCoroutine;
+
+    private static Sprite sharedAuraSprite;
 
     private void Awake()
     {
@@ -163,7 +167,7 @@ public class MonsterEcholocationDevice : MonoBehaviour
 
         auraImage = imageObject.AddComponent<Image>();
         auraImage.raycastTarget = false;
-        auraImage.sprite = CreateAuraSprite();
+        auraImage.sprite = GetOrCreateAuraSprite();
         auraImage.enabled = false;
     }
 
@@ -208,18 +212,20 @@ public class MonsterEcholocationDevice : MonoBehaviour
         auraImage.enabled = true;
     }
 
-    private Sprite CreateAuraSprite()
+    private static Sprite GetOrCreateAuraSprite()
     {
-        const int size = 128;
-        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        if (sharedAuraSprite != null)
+            return sharedAuraSprite;
+
+        Texture2D texture = new Texture2D(AuraTextureSize, AuraTextureSize, TextureFormat.RGBA32, false);
         texture.wrapMode = TextureWrapMode.Clamp;
 
-        Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
-        float radius = size * 0.5f;
+        Vector2 center = new Vector2((AuraTextureSize - 1) * 0.5f, (AuraTextureSize - 1) * 0.5f);
+        float radius = AuraTextureSize * 0.5f;
 
-        for (int y = 0; y < size; y++)
+        for (int y = 0; y < AuraTextureSize; y++)
         {
-            for (int x = 0; x < size; x++)
+            for (int x = 0; x < AuraTextureSize; x++)
             {
                 float distance = Vector2.Distance(new Vector2(x, y), center) / radius;
                 float alpha = Mathf.Clamp01(1f - distance);
@@ -231,11 +237,13 @@ public class MonsterEcholocationDevice : MonoBehaviour
 
         texture.Apply();
 
-        return Sprite.Create(
+        sharedAuraSprite = Sprite.Create(
             texture,
-            new Rect(0f, 0f, size, size),
+            new Rect(0f, 0f, AuraTextureSize, AuraTextureSize),
             new Vector2(0.5f, 0.5f),
-            size);
+            AuraTextureSize);
+
+        return sharedAuraSprite;
     }
 
     private bool TryGetMonsterTransform(out Transform monsterTransform)
