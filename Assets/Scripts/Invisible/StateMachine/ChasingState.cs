@@ -15,8 +15,6 @@ public class ChasingState : IState
     private float originalStoppingDistance;
     private bool originalAutoBraking;
 
-    private const float LoseDelay = 1f;
-
     public ChasingState(StateController controller)
     {
         this.controller = controller;
@@ -68,6 +66,7 @@ public class ChasingState : IState
         HidingSpotInteractable guaranteedSpot = hadVisualContact ? GetGuaranteedHidingSpot() : null;
         if (guaranteedSpot != null)
         {
+            controller.SetPrioritySearchArea(lastSeenPosition);
             controller.StartInvestigation(true, guaranteedSpot);
             return;
         }
@@ -85,8 +84,11 @@ public class ChasingState : IState
         {
             lostTimer += Time.deltaTime;
 
-            if (lostTimer >= LoseDelay)
+            if (lostTimer >= controller.ChaseLoseDelay)
+            {
+                controller.SetPrioritySearchArea(lastSeenPosition);
                 controller.StartInvestigation(true);
+            }
         }
     }
 

@@ -8,6 +8,7 @@ namespace Game.Interaction
         [SerializeField] private string itemId = "ItemA";
         [SerializeField] private string itemDisplayName = "Item";
         [SerializeField] private string pickupPrompt = "Pick up";
+        [SerializeField] private bool allowDuplicatePickup;
 
         [Header("Optional")]
         [SerializeField] private AudioSource pickupAudioSource;
@@ -33,7 +34,7 @@ namespace Game.Interaction
         public bool CanInteract(GameObject interactor)
         {
             SimpleInventory inventory = interactor != null ? interactor.GetComponent<SimpleInventory>() : null;
-            return inventory != null && !inventory.Has(itemId);
+            return inventory != null && (allowDuplicatePickup || !inventory.Has(itemId));
         }
 
         public void Interact(GameObject interactor)

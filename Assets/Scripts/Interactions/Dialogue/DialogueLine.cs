@@ -18,6 +18,19 @@ namespace Game.Interaction
         public float MinimumDuration => minimumDuration;
         public float DelayAfter => delayAfter;
 
+        public DialogueLine()
+        {
+        }
+
+        public DialogueLine(string subtitleText, AudioClip voiceClip = null, float volumeMultiplier = 1f, float minimumDuration = 1.5f, float delayAfter = 0f)
+        {
+            this.subtitleText = subtitleText;
+            this.voiceClip = voiceClip;
+            this.volumeMultiplier = volumeMultiplier;
+            this.minimumDuration = minimumDuration;
+            this.delayAfter = delayAfter;
+        }
+
         public bool IsEmpty()
         {
             return string.IsNullOrWhiteSpace(subtitleText) && voiceClip == null;

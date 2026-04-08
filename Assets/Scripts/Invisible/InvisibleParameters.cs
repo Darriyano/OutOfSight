@@ -38,6 +38,11 @@ public class InvisibleParameters : ScriptableObject
     [SerializeField] private float chaseAcceleration = 80f;
     [SerializeField] private float chaseAngularSpeed = 1080f;
     [SerializeField] private bool chaseAutoBraking = true;
+    [SerializeField] private float chaseLoseDelay = 2.5f;
+
+    [Header("Post-Sighting Pressure")]
+    [SerializeField] private float forcedHidingInspectionRadiusAfterSighting = 5f;
+    [SerializeField] private float investigationTimeBonusAfterSighting = 4f;
 
     [Header("Audio - Ambient")]
     [SerializeField] private float nearMonsterDistance = 12f;
@@ -67,6 +72,13 @@ public class InvisibleParameters : ScriptableObject
     [SerializeField] private float noiseListenerCaptureRadius = 1.5f;
     [SerializeField] private float minHeardNoiseStrength = 0.1f;
 
+    [Header("Patrol Wander")]
+    [SerializeField] private float patrolWanderRadius = 10f;
+    [SerializeField] private float patrolMinMoveDistance = 3f;
+    [SerializeField] private float patrolWaitMin = 0.4f;
+    [SerializeField] private float patrolWaitMax = 1.15f;
+    [SerializeField] private int patrolSampleAttempts = 10;
+
     public float ViewDistance => viewDistance;
     public float BaseViewAngle => baseViewAngle;
     public float FocusedViewAngle => focusedViewAngle;
@@ -80,6 +92,9 @@ public class InvisibleParameters : ScriptableObject
     public float ChaseAcceleration => chaseAcceleration;
     public float ChaseAngularSpeed => chaseAngularSpeed;
     public bool ChaseAutoBraking => chaseAutoBraking;
+    public float ChaseLoseDelay => chaseLoseDelay;
+    public float ForcedHidingInspectionRadiusAfterSighting => forcedHidingInspectionRadiusAfterSighting;
+    public float InvestigationTimeBonusAfterSighting => investigationTimeBonusAfterSighting;
     public float NearMonsterDistance => nearMonsterDistance;
     public float MaxNearMonsterAmbientVolume => maxNearMonsterAmbientVolume;
     public float AmbientVolumeLerpSpeed => ambientVolumeLerpSpeed;
@@ -98,4 +113,9 @@ public class InvisibleParameters : ScriptableObject
     public float PulseAmount => pulseAmount;
     public float NoiseListenerCaptureRadius => noiseListenerCaptureRadius;
     public float MinHeardNoiseStrength => minHeardNoiseStrength;
+    public float PatrolWanderRadius => patrolWanderRadius;
+    public float PatrolMinMoveDistance => patrolMinMoveDistance;
+    public float PatrolWaitMin => patrolWaitMin;
+    public float PatrolWaitMax => patrolWaitMax;
+    public int PatrolSampleAttempts => patrolSampleAttempts;
 }

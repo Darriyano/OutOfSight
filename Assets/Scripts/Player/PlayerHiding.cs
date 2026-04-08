@@ -10,10 +10,18 @@ public class PlayerHiding : MonoBehaviour
     [Header("Movement While Hidden")]
     [SerializeField] private Behaviour[] disableWhileHidden;
 
+    [Header("Dialogue")]
+    [SerializeField] private bool playFirstHideDialogue = true;
+    [SerializeField] private DialogueLine[] firstHideDialogueLines;
+    [SerializeField] private bool interruptFirstHideDialogue;
+    [SerializeField] private bool queueFirstHideDialogueIfBusy = true;
+    [SerializeField, Min(0f)] private float firstHideDialogueDelay;
+
     public bool IsHidden { get; private set; }
     public HidingSpotInteractable CurrentSpot { get; private set; }
 
     private CharacterController characterController;
+    private bool hasPlayedFirstHideDialogue;
 
     private void Awake()
     {
@@ -59,6 +67,10 @@ public class PlayerHiding : MonoBehaviour
 
     public bool IsCrouching()
     {
+        PlayerMovement playerMovement = GetComponent<PlayerMovement>();
+        if (playerMovement != null)
+            return playerMovement.IsSneaking;
+
         return Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.C);
     }
 
@@ -119,6 +131,7 @@ public class PlayerHiding : MonoBehaviour
 
         SetMovementEnabled(false);
         Teleport(spot.GetHidePosition(), spot.GetHideRotation());
+        TryPlayFirstHideDialogue();
     }
 
     private void ExitHiding()
@@ -137,7 +150,34 @@ public class PlayerHiding : MonoBehaviour
         SetMovementEnabled(true);
 
         if (oldSpot != null)
-            Teleport(oldSpot.GetExitPosition(), oldSpot.GetExitRotation());
+            Teleport(oldSpot.GetExitPosition(), oldSpot.GetExitRotation(transform.rotation));
+    }
+
+    private void TryPlayFirstHideDialogue()
+    {
+        if (!playFirstHideDialogue || hasPlayedFirstHideDialogue)
+            return;
+
+        DialogueLine[] dialogueLines = firstHideDialogueLines != null && firstHideDialogueLines.Length > 0
+            ? firstHideDialogueLines
+            : new[]
+            {
+                new DialogueLine("Здесь можно спрятаться, но монстр проверяет такие места.", null, 1f, 3f, 0f)
+            };
+
+        DialogueSequencePlayer player = DialogueSequencePlayer.GetOrCreate(gameObject);
+        if (player == null)
+            return;
+
+        bool started = player.Play(
+            dialogueLines,
+            transform,
+            interruptFirstHideDialogue,
+            queueFirstHideDialogueIfBusy,
+            firstHideDialogueDelay);
+
+        if (started)
+            hasPlayedFirstHideDialogue = true;
     }
 
     private void SetMovementEnabled(bool enabled)

@@ -1,46 +1,34 @@
 using UnityEngine;
-using System.Collections.Generic;
+using UnityEngine.AI;
 
 public class PatrollingState : IState
 {
-    private StateController controller;
-
-    List<Room> rooms;
-    int recount = 0;
-    private int currentRoomIndex = -1;
-
-    private Dictionary<int, int> visitCount = new Dictionary<int, int>();
-    private int lastVisitedRoom = -1;
-
-    private List<Transform> currentInspectionPoints;
-    private int currentPointIndex;
-    private int pointsToCheck;
-
-    private bool inspectingRoom;
-
-    private int minPoints = 2;
-    private int maxPoints = 5;
+    private readonly StateController controller;
+    private float waitTimer;
+    private float currentWaitDuration;
+    private bool waitingAtPoint;
+    private bool hasDestination;
 
     public PatrollingState(StateController controller)
     {
         this.controller = controller;
     }
+
     public void Enter()
     {
-        rooms = controller.Rooms;
-        recount = rooms.Count;
-        for (int i = 0; i < recount; i++)
-        {
-            if (!visitCount.ContainsKey(i))
-                visitCount[i] = 0;
-        }
-
-        ChooseNextRoom();
+        controller.Agent.speed = InvisibleParameters.Instance.UsualSpeed;
+        controller.Agent.isStopped = false;
+        waitTimer = 0f;
+        waitingAtPoint = false;
+        hasDestination = false;
+        ChooseNextPoint(forceAnyDistance: true);
     }
+
     public void Exit()
     {
         controller.Agent.ResetPath();
     }
+
     public void Update()
     {
         if (controller.Behaviour.CanSeeTarget())
@@ -52,93 +40,58 @@ public class PatrollingState : IState
         if (controller.Agent.pathPending)
             return;
 
-        if (controller.Agent.remainingDistance > controller.Agent.stoppingDistance)
-            return;
-
-        if (!inspectingRoom)
+        if (!hasDestination)
         {
-            StartInspection();
-        }
-        else
-        {
-            GoToNextInspectionPoint();
-        }
-    }
-
-    private void ChooseNextRoom()
-    {
-        if (recount == 0)
-            return;
-
-        float totalWeight = 0f;
-        List<float> weights = new List<float>();
-
-        for (int i = 0; i < recount; i++)
-        {
-            float weight = 1f / (1f + visitCount[i]);
-            weights.Add(weight);
-            totalWeight += weight;
-        }
-
-        float randomPoint = Random.Range(0f, totalWeight);
-        float cumulative = 0f;
-
-        for (int i = 0; i < weights.Count; i++)
-        {
-            cumulative += weights[i];
-
-            if (randomPoint <= cumulative)
-            {
-                visitCount[i]++;
-                currentRoomIndex = i;
-                controller.Agent.SetDestination(rooms[currentRoomIndex].entrance.position);
-                if (visitCount[i] > recount + Random.Range(-3, 3))
-                    visitCount[i] = Mathf.Max(0, visitCount[i] - 1);
-                return;
-            }
-        }
-    }
-    private void StartInspection()
-    {
-        //Debug.Log(currentRoomIndex);
-        currentInspectionPoints = new List<Transform>(rooms[currentRoomIndex].inspectionPoints);
-
-        if (currentInspectionPoints.Count == 0)
-        {
-            ChooseNextRoom();
+            ChooseNextPoint(forceAnyDistance: true);
             return;
         }
 
-        pointsToCheck = Random.Range(minPoints, maxPoints + 1);
-        currentPointIndex = 0;
-        inspectingRoom = true;
+        if (controller.Agent.remainingDistance > controller.Agent.stoppingDistance + 0.05f)
+            return;
 
-        Shuffle(currentInspectionPoints);
+        if (!waitingAtPoint)
+        {
+            waitingAtPoint = true;
+            waitTimer = 0f;
+            currentWaitDuration = Random.Range(
+                InvisibleParameters.Instance.PatrolWaitMin,
+                InvisibleParameters.Instance.PatrolWaitMax);
+        }
 
-        controller.Agent.SetDestination(currentInspectionPoints[currentPointIndex].position);
+        waitTimer += Time.deltaTime;
+        if (waitTimer < currentWaitDuration)
+            return;
+
+        ChooseNextPoint(forceAnyDistance: false);
     }
 
-    private void GoToNextInspectionPoint()
+    private void ChooseNextPoint(bool forceAnyDistance)
     {
-        currentPointIndex++;
+        waitingAtPoint = false;
+        waitTimer = 0f;
 
-        if (currentPointIndex >= pointsToCheck || currentPointIndex >= currentInspectionPoints.Count)
+        Vector3 origin = controller.transform.position;
+        float radius = Mathf.Max(1f, InvisibleParameters.Instance.PatrolWanderRadius);
+        float minDistance = forceAnyDistance ? 0f : Mathf.Max(0f, InvisibleParameters.Instance.PatrolMinMoveDistance);
+        int attempts = Mathf.Max(3, InvisibleParameters.Instance.PatrolSampleAttempts);
+
+        for (int i = 0; i < attempts; i++)
         {
-            ChooseNextRoom();
+            Vector2 randomCircle = Random.insideUnitCircle * radius;
+            Vector3 candidate = origin + new Vector3(randomCircle.x, 0f, randomCircle.y);
+
+            if (!NavMesh.SamplePosition(candidate, out NavMeshHit navHit, radius * 0.75f, NavMesh.AllAreas))
+                continue;
+
+            if (!forceAnyDistance && Vector3.Distance(origin, navHit.position) < minDistance)
+                continue;
+
+            controller.Agent.SetDestination(navHit.position);
+            hasDestination = true;
             return;
         }
 
-        controller.Agent.SetDestination(currentInspectionPoints[currentPointIndex].position);
-    }
-
-    private void Shuffle<T>(List<T> list)
-    {
-        for (int i = 0; i < list.Count; i++)
-        {
-            int randomIndex = Random.Range(i, list.Count);
-            T temp = list[i];
-            list[i] = list[randomIndex];
-            list[randomIndex] = temp;
-        }
+        hasDestination = false;
+        controller.Agent.ResetPath();
     }
 }

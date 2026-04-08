@@ -14,6 +14,8 @@ public class StateController : MonoBehaviour, INoiseListener
     private bool hasPendingNoise;
     private Vector3 pendingNoisePosition;
     private float pendingNoiseStrength;
+    private bool hasPrioritySearchArea;
+    private Vector3 prioritySearchOrigin;
 
     public NavMeshAgent Agent => agent;
     public Transform Target => target;
@@ -26,6 +28,9 @@ public class StateController : MonoBehaviour, INoiseListener
     public float ChaseAcceleration => InvisibleParameters.Instance.ChaseAcceleration;
     public float ChaseAngularSpeed => InvisibleParameters.Instance.ChaseAngularSpeed;
     public bool ChaseAutoBraking => InvisibleParameters.Instance.ChaseAutoBraking;
+    public float ChaseLoseDelay => InvisibleParameters.Instance.ChaseLoseDelay;
+    public float ForcedHidingInspectionRadiusAfterSighting => InvisibleParameters.Instance.ForcedHidingInspectionRadiusAfterSighting;
+    public float InvestigationTimeBonusAfterSighting => InvisibleParameters.Instance.InvestigationTimeBonusAfterSighting;
     public Component NoiseListenerComponent => this;
     public Vector3 HearingPosition => transform.position;
     public float HearingCaptureRadius => InvisibleParameters.Instance.NoiseListenerCaptureRadius;
@@ -91,6 +96,25 @@ public class StateController : MonoBehaviour, INoiseListener
         hasPendingNoise = false;
         pendingNoiseStrength = 0f;
         noisePosition = pendingNoisePosition;
+        return true;
+    }
+
+    public void SetPrioritySearchArea(Vector3 searchOrigin)
+    {
+        hasPrioritySearchArea = true;
+        prioritySearchOrigin = searchOrigin;
+    }
+
+    public bool TryConsumePrioritySearchArea(out Vector3 searchOrigin)
+    {
+        if (!hasPrioritySearchArea)
+        {
+            searchOrigin = Vector3.zero;
+            return false;
+        }
+
+        hasPrioritySearchArea = false;
+        searchOrigin = prioritySearchOrigin;
         return true;
     }
 

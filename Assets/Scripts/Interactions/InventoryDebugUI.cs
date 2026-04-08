@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -62,15 +63,26 @@ namespace Game.Interaction
             builder.Clear();
             builder.AppendLine("Inventory:");
 
-            IReadOnlyCollection<string> items = inventory.GetItems();
+            IReadOnlyDictionary<string, int> items = inventory.GetItemCounts();
             if (items.Count == 0)
             {
                 builder.AppendLine(emptyText);
             }
             else
             {
-                foreach (string item in items)
-                    builder.Append("- ").AppendLine(item);
+                List<string> itemIds = new List<string>(items.Keys);
+                itemIds.Sort(StringComparer.Ordinal);
+
+                foreach (string itemId in itemIds)
+                {
+                    builder.Append("- ").Append(itemId);
+
+                    int count = items[itemId];
+                    if (count > 1)
+                        builder.Append(" x").Append(count);
+
+                    builder.AppendLine();
+                }
             }
 
             inventoryText.text = builder.ToString();

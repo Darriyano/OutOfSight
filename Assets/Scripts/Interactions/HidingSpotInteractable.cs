@@ -5,6 +5,13 @@ namespace Game.Interaction
 {
     public class HidingSpotInteractable : MonoBehaviour, IInteractable
     {
+        private enum ExitRotationMode
+        {
+            UseExitPointRotation,
+            KeepCurrentRotation,
+            FaceAwayFromSpot
+        }
+
         private static readonly List<HidingSpotInteractable> Spots = new List<HidingSpotInteractable>();
 
         [Header("Points")]
@@ -15,6 +22,9 @@ namespace Game.Interaction
         [SerializeField] private float activationDistance = 0.7f;
         [SerializeField] private bool requiresCrouch;
         [SerializeField, Range(0f, 1f)] private float inspectionChance = 1f;
+
+        [Header("Exit")]
+        [SerializeField] private ExitRotationMode exitRotationMode = ExitRotationMode.UseExitPointRotation;
 
         private PlayerHiding occupant;
 
@@ -129,12 +139,41 @@ namespace Game.Interaction
             return transform.position + transform.forward;
         }
 
-        public Quaternion GetExitRotation()
+        public Quaternion GetExitRotation(Quaternion currentRotation)
         {
-            if (exitPoint != null)
-                return exitPoint.rotation;
+            switch (exitRotationMode)
+            {
+                case ExitRotationMode.KeepCurrentRotation:
+                    return ToYawRotation(currentRotation * Vector3.forward, currentRotation);
+                case ExitRotationMode.FaceAwayFromSpot:
+                {
+                    Vector3 exitPosition = GetExitPosition();
+                    Vector3 direction = exitPosition - transform.position;
+                    return ToYawRotation(direction, currentRotation);
+                }
+                default:
+                    if (exitPoint != null)
+                        return ToYawRotation(exitPoint.forward, currentRotation);
 
-            return transform.rotation;
+                    return ToYawRotation(transform.forward, currentRotation);
+            }
+        }
+
+        private static Quaternion ToYawRotation(Vector3 forward, Quaternion fallback)
+        {
+            forward.y = 0f;
+            if (forward.sqrMagnitude <= 0.0001f)
+            {
+                Vector3 fallbackForward = fallback * Vector3.forward;
+                fallbackForward.y = 0f;
+
+                if (fallbackForward.sqrMagnitude <= 0.0001f)
+                    return Quaternion.identity;
+
+                forward = fallbackForward;
+            }
+
+            return Quaternion.LookRotation(forward.normalized, Vector3.up);
         }
     }
 }

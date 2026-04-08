@@ -13,6 +13,7 @@ public class InvestigationState : IState
     private readonly StateController controller;
     private readonly bool shouldInspectHidingSpots;
     private readonly HidingSpotInteractable guaranteedSpot;
+    private readonly HashSet<HidingSpotInteractable> addedHidingSpots = new HashSet<HidingSpotInteractable>();
 
     private readonly List<InvestigationPoint> checkPoints = new List<InvestigationPoint>();
     private int currentPointIndex;
@@ -20,6 +21,8 @@ public class InvestigationState : IState
     private float investigationTimer;
     private float maxInvestigationTime;
     private int fixedPointCount;
+    private bool hasPrioritySearchOrigin;
+    private Vector3 prioritySearchOrigin;
 
     private const float PointCheckPause = 0.75f;
     private const float HiddenPlayerCheckDistance = 1.25f;
@@ -43,6 +46,10 @@ public class InvestigationState : IState
         waitTimer = 0f;
         investigationTimer = 0f;
         maxInvestigationTime = Random.Range(8f, 15f);
+        hasPrioritySearchOrigin = controller.TryConsumePrioritySearchArea(out prioritySearchOrigin);
+
+        if (hasPrioritySearchOrigin)
+            maxInvestigationTime += controller.InvestigationTimeBonusAfterSighting;
 
         BuildCheckRoute();
 
@@ -104,10 +111,13 @@ public class InvestigationState : IState
     private void BuildCheckRoute()
     {
         checkPoints.Clear();
+        addedHidingSpots.Clear();
         fixedPointCount = 0;
 
         AddGuaranteedSpot();
         AddNoisePoint();
+        AddPrioritySearchOriginPoint();
+        AddPriorityNearbyHidingSpots();
 
         if (shouldInspectHidingSpots)
             BuildHidingRoute();
@@ -123,12 +133,8 @@ public class InvestigationState : IState
         if (guaranteedSpot == null)
             return;
 
-        checkPoints.Add(new InvestigationPoint
-        {
-            PointPosition = guaranteedSpot.transform.position,
-            HidingSpot = guaranteedSpot
-        });
-        fixedPointCount++;
+        if (TryAddHidingSpot(guaranteedSpot, guaranteedSpot.transform.position))
+            fixedPointCount++;
     }
 
     private void AddNoisePoint()
@@ -142,6 +148,55 @@ public class InvestigationState : IState
         });
 
         fixedPointCount++;
+    }
+
+    private void AddPrioritySearchOriginPoint()
+    {
+        if (!hasPrioritySearchOrigin)
+            return;
+
+        checkPoints.Add(new InvestigationPoint
+        {
+            PointPosition = prioritySearchOrigin
+        });
+        fixedPointCount++;
+    }
+
+    private void AddPriorityNearbyHidingSpots()
+    {
+        if (!hasPrioritySearchOrigin || !shouldInspectHidingSpots)
+            return;
+
+        List<Room> rooms = controller.Rooms;
+        if (rooms == null)
+            return;
+
+        float forcedRadius = controller.ForcedHidingInspectionRadiusAfterSighting;
+        float forcedRadiusSqr = forcedRadius * forcedRadius;
+
+        for (int i = 0; i < rooms.Count; i++)
+        {
+            Room room = rooms[i];
+            if (room == null || room.hidingPoints == null)
+                continue;
+
+            for (int j = 0; j < room.hidingPoints.Count; j++)
+            {
+                Transform hidingPoint = room.hidingPoints[j];
+                if (hidingPoint == null)
+                    continue;
+
+                if ((hidingPoint.position - prioritySearchOrigin).sqrMagnitude > forcedRadiusSqr)
+                    continue;
+
+                HidingSpotInteractable hidingSpot = ResolveHidingSpot(hidingPoint);
+                if (hidingSpot == null)
+                    continue;
+
+                if (TryAddHidingSpot(hidingSpot, hidingPoint.position))
+                    fixedPointCount++;
+            }
+        }
     }
 
     private bool TryFindHiddenPlayerAtCurrentPoint()
@@ -193,14 +248,10 @@ public class InvestigationState : IState
                     continue;
 
                 HidingSpotInteractable hidingSpot = ResolveHidingSpot(hidingPoint);
-                if (hidingSpot == null || hidingSpot == guaranteedSpot || !hidingSpot.ShouldBeInspected())
+                if (hidingSpot == null || addedHidingSpots.Contains(hidingSpot) || !hidingSpot.ShouldBeInspected())
                     continue;
 
-                checkPoints.Add(new InvestigationPoint
-                {
-                    PointPosition = hidingPoint.position,
-                    HidingSpot = hidingSpot
-                });
+                TryAddHidingSpot(hidingSpot, hidingPoint.position);
             }
         }
     }
@@ -249,5 +300,20 @@ public class InvestigationState : IState
             list[i] = list[randomIndex];
             list[randomIndex] = temp;
         }
+    }
+
+    private bool TryAddHidingSpot(HidingSpotInteractable hidingSpot, Vector3 pointPosition)
+    {
+        if (hidingSpot == null || addedHidingSpots.Contains(hidingSpot))
+            return false;
+
+        checkPoints.Add(new InvestigationPoint
+        {
+            PointPosition = pointPosition,
+            HidingSpot = hidingSpot
+        });
+
+        addedHidingSpots.Add(hidingSpot);
+        return true;
     }
 }
